@@ -187,7 +187,7 @@ def is_button_dark(image, threshold=100):
     np_image = np.array(image)
     gray_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2GRAY)
     avg_brightness = np.mean(gray_image)
-    print(f"Average brightness: {avg_brightness:.2f} (Threshold: {threshold})")  # Added logging
+    # print(f"Average brightness: {avg_brightness:.2f} (Threshold: {threshold})")  # Added logging
     return avg_brightness < threshold
 
 def check_and_click(x, y, width, height, threshold):
