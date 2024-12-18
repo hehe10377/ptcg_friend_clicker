@@ -9,6 +9,7 @@ import keyboard
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import json
 
 
 MESSAGES = {
@@ -44,7 +45,20 @@ MESSAGES = {
         'sending_email': "Sending email notification...",
         'email_notifications_disabled': "Email notifications are disabled.",
         'program_interrupted': "Program interrupted.",
-        'program_exited': "Program exited."
+        'program_exited': "Program exited.",
+        'current_settings': 'Current settings:',
+        'setting_language': '1. Language: {}',
+        'setting_threshold': '2. Brightness threshold: {}',
+        'setting_position': '3. Button position: {}',
+        'setting_email': '4. Email notifications',
+        'setting_continue': '5. Continue with current settings',
+        'skip_settings': '3. Skip settings',
+        'change_settings': 'What would you like to change? (1-3): ',
+        'change_more': 'Would you like to change anything else? (y/n): ',
+        'invalid_choice': 'Invalid choice. Please select 1-3.',
+        'verify_position': 'Would you like to verify the button position for this session?',
+        'save_position_default': 'Would you like to save this position as the default? (y/n): ',
+        'want_change_settings': 'Would you like to modify any system settings? (y/n): '
     },
     'zh': {
         'select_language': '請選擇語言 (預設中文，按Enter繼續，或輸入en切換至英文): ',
@@ -78,17 +92,43 @@ MESSAGES = {
         'sending_email': "正在發送電郵通知...",
         'email_notifications_disabled': "電郵通知已停用。",
         'program_interrupted': "程式已中斷。",
-        'program_exited': "程式已結束。"
+        'program_exited': "程式已結束。",
+        'current_settings': '目前設定：',
+        'setting_language': '1. 語言：{}',
+        'setting_threshold': '2. 亮度閾值：{}',
+        'setting_position': '3. 按鈕位置：{}',
+        'setting_email': '4. 電郵通知',
+        'setting_check_interval': '5. 檢查間隔：{}',
+        'setting_dark_time_threshold': '6. 黑暗時間閾值：{}',
+        'setting_continue': '5. 使用目前設定繼續',
+        'skip_settings': '3. 跳過設定',
+        'change_settings': '想要更改哪個設定？(1-3)：',
+        'change_more': '是否要更改其他設定？(y/n)：',
+        'invalid_choice': '無效的選擇。請選擇 1-3。',
+        'verify_position': '是否要驗證本次執行的按鈕位置？',
+        'save_position_default': '是否要將此位置儲存為預設值？(y/n)：',
+        'want_change_settings': '是否要修改系統設定？(y/n)：'
     }
 }
 
-def get_language():
+# At the top of the file, after imports
+LANG = 'zh'  # Default language
+
+def get_language(settings):
     """Get user's preferred language"""
+    global LANG  # Declare global
     while True:
-        lang = input(MESSAGES['zh']['select_language']).lower()
-        if lang == 'en':
-            return 'en'
-        return 'zh'
+        if settings['language'] == 'none' or (settings['language'] != 'zh' and settings['language'] != 'en'):
+            lang = input(MESSAGES['zh']['select_language']).lower()
+            
+            if lang == 'en':
+                settings['language'] = 'en'
+            else:
+                settings['language'] = 'zh'
+            save_settings(settings)
+            return settings['language']
+        else:
+            return settings['language']
 
 def verify_email_settings():
     """Verify email settings are properly configured"""
@@ -147,6 +187,7 @@ def is_button_dark(image, threshold=100):
     np_image = np.array(image)
     gray_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2GRAY)
     avg_brightness = np.mean(gray_image)
+    print(f"Average brightness: {avg_brightness:.2f} (Threshold: {threshold})")  # Added logging
     return avg_brightness < threshold
 
 def check_and_click(x, y, width, height, threshold):
@@ -214,19 +255,10 @@ def show_monitoring_area(coords):
 
 def get_button_coordinates():
     """Function to handle button coordinate initialization"""
-    DEFAULT_COORDS = (2570, 1010, 260, 50)
-    
-    user_input = input(MESSAGES[LANG]['set_button_position']).lower()
-    
     while True:
-        if user_input == 'y':
-            print(MESSAGES[LANG]['starting_finder'])
-            coords = find_button_coords()
-            print(MESSAGES[LANG]['button_coords'].format(coords))
-        else:
-            print(MESSAGES[LANG]['using_default'])
-            coords = DEFAULT_COORDS
-
+        print(MESSAGES[LANG]['starting_finder'])
+        coords = find_button_coords()
+        print(MESSAGES[LANG]['button_coords'].format(coords))
         print(MESSAGES[LANG]['active_coords'].format(coords))
         print(MESSAGES[LANG]['showing_area'])
         
@@ -237,34 +269,94 @@ def get_button_coordinates():
             print(MESSAGES[LANG]['position_rejected'])
             continue
 
-def get_user_preferences():
-    """Get user preferences for button position and email notifications"""
-    preferences = {
-        'button_coords': None,
-        'enable_email': False
+def load_settings():
+    """Load settings from JSON file, create default if not exists"""
+    default_settings = {
+        "language": "none", # for the first time, it will be set to zh by default
+        "brightness_threshold": 170,
+        "button_coords": [2570, 1010, 260, 50],
+        "check_interval": 0.5,
+        "dark_time_threshold": 60,
+        "email_settings": {
+            "sender_email": "",
+            "receiver_email": "",
+            "smtp_server": "smtp.gmail.com",
+            "smtp_port": 587
+        }
     }
     
-    email_input = input(MESSAGES[LANG]['want_email']).lower()
-    if email_input == 'y':
+    try:
+        with open('settings.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        # If file doesn't exist or is invalid, create new with defaults
+        save_settings(default_settings)
+        return default_settings
+
+def initialize_preferences(settings):
+    """Initialize session preferences with default values"""
+    return {
+        'button_coords': tuple(settings['button_coords']),
+        'enable_email': False,
+        'monitor_active': True,
+        'current_session': {
+            'dark_duration': 0,
+            'alerts_sent': 0,
+            'start_time': time.time()
+        }
+    }
+
+def get_user_preferences(settings):
+    """Get user preferences with improved flow"""
+    global LANG
+    preferences = initialize_preferences(settings)
+    
+    # First, confirm critical session preferences
+    if input(MESSAGES[LANG]['set_button_position']).lower() in ['y']:
+        new_coords = get_button_coordinates()
+        preferences['button_coords'] = new_coords
+        settings['button_coords'] = list(new_coords)
+        save_settings(settings)
+    
+    # Ask about email notifications for this session
+    if input(MESSAGES[LANG]['want_email']).lower() in ['y', '']:
         if verify_email_settings():
             preferences['enable_email'] = True
             print(MESSAGES[LANG]['email_enabled'])
         else:
             print(MESSAGES[LANG]['email_disabled'])
-            preferences['enable_email'] = False
     
-    preferences['button_coords'] = get_button_coordinates()
-    
+    # Show current settings but don't prompt for changes by default
+    print(f"\n{MESSAGES[LANG]['current_settings']}")
+    print(MESSAGES[LANG]['setting_language'].format(settings['language']))
+    print(MESSAGES[LANG]['setting_threshold'].format(settings['brightness_threshold']))
+    print(MESSAGES[LANG]['setting_position'].format(preferences['button_coords']))
+    print(MESSAGES[LANG]['setting_email'].format(preferences['enable_email']))
+    print(MESSAGES[LANG]['setting_check_interval'].format(settings['check_interval']))
+    print(MESSAGES[LANG]['setting_dark_time_threshold'].format(settings['dark_time_threshold']))
+    print('--------------------------------')
+
     return preferences
 
+def save_settings(settings):
+    """Save current settings to JSON file"""
+    with open('settings.json', 'w', encoding='utf-8') as f:
+        json.dump(settings, f, indent=4, ensure_ascii=False)
+
 # Main script
-LANG = get_language()  # Get language preference first
-preferences = get_user_preferences()
+settings = load_settings()
+LANG = get_language(settings)
+preferences = get_user_preferences(settings)
+
+# Use preferences for session-specific values
 button_coords = preferences['button_coords']
 enable_email = preferences['enable_email']
-brightness_threshold = 140
-dark_duration = 0
-dark_time_threshold = 60
+current_session = preferences['current_session']
+
+# Use settings for persistent values
+brightness_threshold = settings['brightness_threshold']
+dark_time_threshold = settings['dark_time_threshold']
+check_interval = settings['check_interval']
 
 print(MESSAGES[LANG]['monitoring'])
 try:
@@ -275,19 +367,19 @@ try:
 
         if check_and_click(*button_coords, brightness_threshold):
             print(MESSAGES[LANG]['button_dark'])
-            dark_duration += 0.5
-            if dark_duration >= dark_time_threshold:
+            current_session['dark_duration'] += check_interval
+            if current_session['dark_duration'] >= dark_time_threshold:
                 print(MESSAGES[LANG]['button_dark_long'])
-                if enable_email and dark_duration == dark_time_threshold:
+                if enable_email and current_session['alerts_sent'] == 0:
                     print(MESSAGES[LANG]['sending_email'])
                     send_email_notification()
+                    current_session['alerts_sent'] += 1
                 else:
                     print(MESSAGES[LANG]['email_notifications_disabled'])
-
         else:
-            dark_duration = 0
+            current_session['dark_duration'] = 0
 
-        time.sleep(0.5)
+        time.sleep(check_interval)
 except KeyboardInterrupt:
     print(MESSAGES[LANG]['program_interrupted'])
 finally:
