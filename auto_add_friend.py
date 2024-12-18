@@ -211,6 +211,17 @@ def show_monitoring_area(coords):
             cv2.destroyAllWindows()
             return False
         cv2.waitKey(1)
+    
+    ############### for MacOS ###############
+    # while True:
+    #     key = keyboard.read_key()
+    #     if key == 16: # y = 16
+    #         cv2.destroyAllWindows()
+    #         return True
+    #     elif key == 45: # n = 45
+    #         cv2.destroyAllWindows()
+    #         return False
+    #########################################
 
 def get_button_coordinates():
     """Function to handle button coordinate initialization"""
