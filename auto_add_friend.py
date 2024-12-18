@@ -278,7 +278,7 @@ try:
             dark_duration += 0.5
             if dark_duration >= dark_time_threshold:
                 print(MESSAGES[LANG]['button_dark_long'])
-                if enable_email:
+                if enable_email and dark_duration == dark_time_threshold:
                     print(MESSAGES[LANG]['sending_email'])
                     send_email_notification()
                 else:
