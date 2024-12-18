@@ -19,7 +19,7 @@
 
 1. **下載專案**：  
    ```bash
-   git clone https://github.com/yourusername/ptcg-friend-clicker.git
+   git clone https://github.com/Ying-Kai-Liao/ptcg_friend_clicker
    ```  
 
 2. **進入目錄**：  
